@@ -13,4 +13,4 @@ Arrow keys to play.
 
 Bot Playing:
 
-![](Media/Bot.png)
+![](Media/Bot.PNG)
