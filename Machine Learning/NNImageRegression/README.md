@@ -11,11 +11,15 @@ This is mainly for interacting with to build intuitions, so I encourage messing 
 Running requires Python 3.6, keras
 
 ## Images/mediumStraight.png
+### Target
+![](Images/mediumStraight.png)
 ![](Media/0.png)
 ![](Media/1.png)
 ![](Media/2.png)
 ![](Media/3.png)
 ## Images/rainbow.png
+### Target
+![](Images/rainbow.png)
 ![](Media/4.png)
 ![](Media/5.png)
 ![](Media/6.png)

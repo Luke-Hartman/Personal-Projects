@@ -37,8 +37,8 @@ def searchWiki(start, target):
             return
     print "Failed to find '%s' from '%s'" %  (start, target)
 
-start = 'Puppies'
-target = 'Adolf_Hitler'
+start = 'Puppy'
+target = 'United_States'
 start_time = time.time()
 print("Going from %s to %s" % (start, target))
 searchWiki(start, target)

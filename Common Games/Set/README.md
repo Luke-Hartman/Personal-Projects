@@ -17,16 +17,16 @@ Use Python 2.7 and Pygame to run
 
 ### 2. Then press '2', because the card has two shapes.
 
-### 3. Now press '3', because the card is has purple shapes.
+### 3. Now press '3', because the card has purple shapes.
 ![](Media/1.PNG)
 
-### 4. Now press '2', because the card is has stripped shapes.
+### 4. Now press '2', because the card has stripped shapes.
 ![](Media/2.PNG)
 
-### 5. Finally, press '1', because the card is has diamond shapes.
+### 5. Finally, press '1', because the card has diamond shapes.
 ![](Media/3.PNG)
 
-### Now we have placed the desired card in the desired position.
+### Now we have placed the desired card at the desired position.
 ![](Media/5.PNG)
 
 ### You can drag and drop cards to new positions

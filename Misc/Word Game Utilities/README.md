@@ -4,7 +4,7 @@ Uses a provided dictionary, (I provided the official Scrabble dictionary with th
 to perform various functions.
 
 
-### /n Find all the neighbors of a word. (Add, remove or change one letter)
+### /n Find all the neighbors of a word. (Add, remove, or change one letter)
 ![](Media/neighbors.PNG)
 ### /r Find all words matching a regular expression
 ![](Media/regex.PNG)
