@@ -14,8 +14,8 @@ If every player skips the game ends, displaying the scores.
 Use Python 2.7 and Pygame to run.
 
 ## Go
-![](Media/Go.png)
+![](Media/Go.PNG)
 ## Scoring
-![](Media/Score.png)
+![](Media/Score.PNG)
 ## Tic Tac Go
-![](Media/Tic Tac Go.png)
+![](Media/Tic Tac Go.PNG)

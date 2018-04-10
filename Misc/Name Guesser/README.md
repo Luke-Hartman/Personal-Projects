@@ -5,4 +5,4 @@ Helps the user do binary/bisection search to guess somebody's name using actual 
 Run using Python 3.6
 
 ## Demo trying to guess my name (Luke Hartman)
-![](Media/Demo.png)
+![](Media/Demo.PNG)

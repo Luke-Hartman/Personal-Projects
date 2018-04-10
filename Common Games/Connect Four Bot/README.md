@@ -11,7 +11,7 @@ For instance, in the image below, black could have played in either of the indic
 
 Use Python 2.7 and Pygame to run.
 
-![](Media/Victory.png)
+![](Media/Victory.PNG)
 
 ### Also displays random funny messages to the user when they lose.
 

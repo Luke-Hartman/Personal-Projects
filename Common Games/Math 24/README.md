@@ -9,4 +9,4 @@ Using all the speedups allows me to find all solutions to problems with 6 number
 
 Run with Python 2.7+
 
-![](Media/demo.png)
+![](Media/demo.PNG)

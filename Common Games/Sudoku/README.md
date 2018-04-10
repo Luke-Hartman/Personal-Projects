@@ -4,6 +4,6 @@ Sudoku is great. It is one of my favorite games to mess around with, and a great
 
 Runs of python program.
 
-![](Media/0.png)
-![](Media/1.png)
-![](Media/2.png)
+![](Media/0.PNG)
+![](Media/1.PNG)
+![](Media/2.PNG)
