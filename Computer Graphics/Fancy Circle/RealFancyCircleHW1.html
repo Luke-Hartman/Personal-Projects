@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<!--
+Created using JS Bin
+http://jsbin.com
+
+Copyright (c) 2017 by anonymous (http://jsbin.com/litevowawo/1/edit)
+
+Released under the MIT license: http://jsbin.mit-license.org
+-->
+<meta name="robots" content="noindex">
+<html>
+<head>
+  <title>Circle From Three Points</title>
+</head>
+<body>
+  <canvas id="myCanvas" width="500" height="500"
+   style="border:1px solid #000000;">
+  </canvas>
+  <br>
+  
+  <br>
+  Point #1 (x, y, z)
+  <br>
+  <input type="range" id="p1x" min="0" value="100" max="255"/>
+  <input type="range" id="p1y" min="0" value="150" max="255"/>
+  <input type="range" id="p1z" min="0" value="200" max="255"/>
+  <br>
+  Point #2 (x, y, z)
+  <br>
+  <input type="range" id="p2x" min="0" value="200" max="255"/>
+  <input type="range" id="p2y" min="0" value="200" max="255"/>
+  <input type="range" id="p2z" min="0" value="200" max="255"/>
+  <br>
+  Point #3 (x, y, z)
+  <br>
+  <input type="range" id="p3x" min="0" value="100" max="255"/>
+  <input type="range" id="p3y" min="0" value="100" max="255"/>
+  <input type="range" id="p3z" min="0" value="100" max="255"/>
+  <br>
+  
+  <br>
+  View Angle (pitch, yaw)
+  <br>
+  <input type="range" id="pitch" min="0" value="15" max="359"/>
+  <input type="range" id="yaw" min="0" value="30" max="359"/>
+  <br>
+  <br>
+  Translate Origin (x, y)
+  <br>
+  <input type="range" id="ox" min="0" value="250" max="500"/>
+  <input type="range" id="oy" min="0" value="255" max="500"/>
+  <br>
+  
+  <br>
+  Magnification
+  <br>
+  <input type="range" id="zoom" min="10" value="20" max="100"/>
+  <br>
+  
+  <br>
+  Point Sizes
+  <br>
+  <input type="range" id="pointSize" min="0" value="5" max="20"/> 
+  <br>
+  Show Point Labels
+  <input type="checkbox" id="showPointLabels" checked="checked"/>
+  <br>
+  
+  <br>
+  Quality
+  <br>
+  <input type="range" id="numLines" min="5" value="20" max="50"/>
+<script id="jsbin-javascript">
+function setup() {
+  var canvas = document.getElementById('myCanvas');
+  
+  function addEventListeners() {
+    var sliders = document.getElementsByTagName('input');
+    for(var i = 0; i < sliders.length; i++) {
+      sliders[i].addEventListener('input', draw);
+    }
+    document.getElementById('showPointLabels').addEventListener('click', draw);
+  }
+  function draw() {
+    // Gets all of the values from the sliders
+    var positions = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    var directionLabels = ['x', 'y', 'z'];
+    for(var index = 0; index < positions.length; index++) {
+      var position = positions[index];
+      for(var direction = 0; direction < position.length; direction++) {
+        var id = 'p' + (index + 1) + directionLabels[direction];
+        position[direction] = parseInt(document.getElementById(id).value); 
+      }
+    }
+    var pitch = parseInt(document.getElementById('pitch').value);
+    var yaw = parseInt(document.getElementById('yaw').value);
+    var ox = parseInt(document.getElementById('ox').value);
+    var oy = parseInt(document.getElementById('oy').value);
+    var zoom = parseInt(document.getElementById('zoom').value);
+    var numLines = parseInt(document.getElementById('numLines').value);
+    
+    function cos(angle) {
+      return Math.cos(angle/180*Math.PI);
+    }
+    function sin(angle) {
+      return Math.sin(angle/180*Math.PI);
+    }
+    // Used to flatten the 3D points onto the screen
+    function R3toR2(position) {
+      var x = position[0];
+      var y = -position[1];
+      var z = position[2];
+      return [x*cos(yaw) + y*sin(yaw)*sin(pitch) - z*sin(yaw)*cos(pitch),
+              y*cos(pitch) + z*sin(pitch)];
+    }
+    // Various vector functions used to calculate/draw the circle
+    function cross(vector1, vector2) {
+      return [vector1[1]*vector2[2] - vector2[1]*vector1[2],
+              vector2[0]*vector1[2] - vector1[0]*vector2[2],
+              vector1[0]*vector2[1] - vector2[0]*vector1[1]];
+    }
+    function dot(vector1, vector2) {
+      var sum = 0;
+      for(var i = 0; i < vector1.length; i++) {
+        sum += vector1[i]*vector2[i];
+      }
+      return sum;
+    }
+    function magnitude(vector) {
+      var sum = 0;
+      for(var i = 0; i < vector.length; i++) {
+        sum += Math.pow(vector[i], 2);
+      }
+      return Math.pow(sum, 0.5);
+    }
+    function scale(vector, scalar) {
+      var newVector = new Array(vector.length);
+      for(var i = 0; i < vector.length; i++) {
+        newVector[i] = vector[i]*scalar;
+      }
+      return newVector;
+    }
+    function add(vector1, vector2) {
+      var newVector = new Array(vector1.length);
+      for(var i = 0; i < vector1.length; i++) {
+        newVector[i] = vector1[i] + vector2[i];
+      }      
+      return newVector;
+    }
+    function negative(vector) {
+      console.log(scale);
+      return scale(vector, -1);
+    }
+    function sub(vector1, vector2) {
+      return add(vector1, negative(vector2));
+    }
+    function normalize(vector) {
+      return scale(vector, 1/magnitude(vector));
+    }
+    // Used to color all of the lines based on their end points
+    function positionToColor(position) {
+      console.log(position);
+      return 'rgb('+Math.floor(position[0])+', '+Math.floor(position[1])+', '+Math.floor(position[2])+')';
+    }
+    function drawLine(position1, position2) {
+      var start = R3toR2(position1);
+      var end = R3toR2(position2);
+      context.beginPath();
+      context.moveTo(start[0], start[1]);
+      context.lineTo(end[0], end[1]);
+      context.strokeStyle = positionToColor(position2);
+      context.stroke();
+    }
+    function drawPoint(position, size, name) {
+      var center = R3toR2(position);
+      var color = positionToColor(position);
+      context.beginPath();
+      context.arc(center[0], center[1], size, 0, Math.PI*2);
+      context.fillStyle = 'rgb(255,255,255)';
+      context.fill();
+      context.strokeStyle = color;
+      context.stroke();
+      if(document.getElementById('showPointLabels').checked) {
+        context.font = size*1.5 + 'px Tahoma';
+        context.fillStyle = color;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(name + '', center[0], center[1]);
+      }
+    }
+    // Derivation attached, I would look at both at the same time
+    function drawCircle() {
+      var A = positions[0];
+      var B = positions[1];
+      var C = positions[2];
+      
+      var AB = sub(B, A);
+      var AC = sub(C, A);
+      
+      var u1 = normalize(AB);
+      var u3 = normalize(cross(u1, AC));
+      var u2 = cross(u3, u1);
+      
+      var a1 = dot(A, u1);
+      var a2 = dot(A, u2);
+      
+      var b1 = dot(B, u1);
+      var b2 = dot(B, u2);
+      
+      var c1 = dot(C, u1);
+      var c2 = dot(C, u2);
+      
+      var g1 = 2*(b1 - a1);
+      var g2 = 2*(b2 - a2);
+      var g3 = Math.pow(b1, 2) + Math.pow(b2, 2)
+              -Math.pow(a1, 2) - Math.pow(a2, 2);
+      
+      var h1 = 2*(c1 - a1);
+      var h2 = 2*(c2 - a2);
+      var h3 = Math.pow(c1, 2) + Math.pow(c2, 2)
+              -Math.pow(a1, 2) - Math.pow(a2, 2);
+      
+      var y = (g1*h3 - g3*h1)/(g1*h2 - g2*h1);
+      var x = (g3 - g2*y)/g1;
+      var z = dot(A, u3);
+      var center = add(add(scale(u1, x), scale(u2, y)), scale(u3, z));
+      var radius = magnitude([a1 - x, a2 - y]);
+      var oldPoint;
+      var newPoint;
+      for(var i = -1; i < numLines; i++) {
+        var o1 = radius*cos(360*i/numLines);
+        var o2 = radius*sin(360*i/numLines);
+        var pointR3 = add(center, add(scale(u1, o1), scale(u2, o2)));
+        if(i != -1) {
+          newPoint = pointR3;
+          drawLine(newPoint, oldPoint);
+          oldPoint = newPoint;
+        } 
+        else {
+          oldPoint = pointR3;
+        }
+      }
+    }
+    // Does the actual drawing
+    var context = canvas.getContext('2d');
+    context.save();
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.translate(ox, canvas.width-oy);
+    context.scale(zoom/25, zoom/25);
+    drawLine([0,0,0], [255, 0, 0]);
+    drawLine([0,0,0], [0, 255, 0]);
+    drawLine([0,0,0], [0, 0, 255]);
+    
+    drawCircle();
+    var size = document.getElementById('pointSize').value;
+    for(var point = 2; point >= 0; point--) {
+      drawPoint(positions[point], size, point + 1);
+    }
+    context.restore();
+  }
+  //Runs on start up
+  addEventListeners();
+  draw();
+}
+window.onload = setup;
+</script>
+</body>
+</html>

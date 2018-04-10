@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<!--
+Created using JS Bin
+http://jsbin.com
+
+Copyright (c) 2017 by Luke-Hartman (http://jsbin.com/vafilu/12/edit)
+
+Released under the MIT license: http://jsbin.mit-license.org
+-->
+<meta name="robots" content="noindex">
+<html>
+<head>
+<meta name="Mirrors and Lighting" content="Simple Scene with reflections and spectral lighting">
+  <meta charset="utf-8">
+  <title>Mirrors and Lighting</title>
+  <canvas id="myCanvas" 
+	   width="800" height="800"
+	   style="border:1px solid #000;">
+  </canvas><br/>
+  <script src="http://graphics.cs.wisc.edu/JS/twgl-full.min.js"></script>
+</head>
+<body>
+
+<script id="jsbin-javascript">
+function setup() {
+  var canvas = document.getElementById('myCanvas');
+  var context = canvas.getContext('2d');
+  var m4 = twgl.m4;
+  var v3 = twgl.v3;
+  
+  var eyePosition = v3.create();
+  var eyeDirection = v3.create();
+  var lightSource = v3.normalize([2, 3, -1]);
+  var counter = 0;
+
+  function Face(reflections, drawMe, Tx, vertices, color) {
+    this.reflections = reflections;
+    this.drawMe = drawMe;
+    this.vertices = vertices;
+    for(var i = 0; i < vertices.length; i++) {
+      m4.transformPoint(Tx, vertices[i], vertices[i]);
+    }
+    this.normal = computeNormal(vertices);
+    this.center = computeCenter(vertices);
+    this.color = color;
+  }
+  function createBox(reflections, Tx, baseColor) {
+    var faces = [
+      new Face(reflections, 1, Tx, [[ 100,-100,-100], [ 100, 100,-100], [ 100, 100, 100], [ 100,-100, 100]], baseColor),
+      new Face(0,      1, Tx, [[-100, 100, 100], [-100, 100,-100], [-100,-100,-100], [-100,-100, 100]], baseColor),
+      new Face(0,      1, Tx, [[-100, 100, 100], [ 100, 100, 100], [ 100, 100,-100], [-100, 100,-100]], baseColor),
+      new Face(0,      1, Tx, [[ 100,-100, 100], [ 100, 100, 100], [-100, 100, 100], [-100,-100, 100]], baseColor),
+      new Face(0,      1, Tx, [[ 100, 100,-100], [ 100,-100,-100], [-100,-100,-100], [-100, 100,-100]], baseColor),
+      new Face(0,      1, Tx, [[-100,-100, 100], [-100,-100,-100], [ 100,-100,-100], [ 100,-100, 100]], baseColor)      
+    ]
+    return faces;
+  }
+  function computeNormal(vertices) {
+    var AB = v3.subtract(vertices[1], vertices[0]);
+    var BC = v3.subtract(vertices[2], vertices[1]);
+    var normal = v3.cross(AB, BC);
+    v3.normalize(normal, normal);
+    return normal;
+  }
+  function computeCenter(vertices) {
+    var center = v3.create();
+    for(var i = 0; i < vertices.length; i++) {
+      v3.add(center, vertices[i], center);
+    }
+    v3.divScalar(center, vertices.length, center);
+    return center;
+  }
+  function moveToTx(loc,Tx) {
+    var locTx = m4.transformPoint(Tx,loc);
+    context.moveTo(locTx[0],locTx[1]);
+  }
+  function lineToTx(loc,Tx) {
+    var locTx = m4.transformPoint(Tx,loc);
+    context.lineTo(locTx[0],locTx[1]);
+  }
+  function getForwardDist(target, position, direction) {
+    return v3.dot(v3.subtract(target, position), direction);
+  }
+  function getEyeDist(face) {
+    return getForwardDist(face.center, eyePosition, eyeDirection);
+  }         
+  function getVisible(face) {
+    return v3.dot(face.normal, v3.subtract(face.center, eyePosition)) < 0;
+  }              
+  function compareFaces(f1, f2) {
+    return getEyeDist(f2) - getEyeDist(f1);
+  }
+  function drawFace(face, lightDirection, Tx) {
+      var ambient = 0.75;
+      var diffuse = Math.max(0, v3.dot(face.normal, lightDirection));
+      var specular = Math.pow(Math.max(0, v3.dot(reflectDirection(lightDirection, face.normal), eyeDirection)), 32);
+      var colorVec = v3.mulScalar(face.color, ambient + diffuse + specular);
+      var color = "rgb(" + Math.round(colorVec[0]) + ", " + Math.round(colorVec[1]) + ", " + Math.round(colorVec[2]) + ")";
+    
+      context.beginPath();
+      context.fillStyle = color;
+      moveToTx(face.vertices[0], Tx);
+      for(var j = 1; j < face.vertices.length; j++) {
+        lineToTx(face.vertices[j], Tx);
+      }
+      context.closePath();
+      context.fill();
+  }
+  function reflectDirection(d, mirrorNormal) {
+    return v3.subtract(d, v3.mulScalar(mirrorNormal, 2*v3.dot(d, mirrorNormal)));    
+  }
+  function reflectPosition(v, mirrorPos, mirrorNormal) {
+    return v3.subtract(v, v3.mulScalar(mirrorNormal, 2*v3.dot(v3.subtract(v, mirrorPos), mirrorNormal)));
+  } 
+  function reflectFace(face, mirror) {
+    // Store the mirrored normal, because it doesn't mirror properly if you recalculate it in the face constructor
+    var reflectedNormal = reflectDirection(face.normal, mirror.normal);
+    // Mirror the vertices
+    var reflectedVertices = [];
+    for(var i = 0; i < face.vertices.length; i++) {
+      reflectedVertices.push(reflectPosition(face.vertices[i], mirror.center, mirror.normal));
+    }
+    // true  if it will be visible in this mirror directly
+    // false means it can still be viewed in a reflection of a reflection
+    var drawMe = getForwardDist(face.center, mirror.center, mirror.normal) >= 0.001;
+    
+    var newFace = new Face(face.reflections - 1, drawMe, m4.identity(), reflectedVertices, face.color);
+    // Overwrite with previously calculated normal;
+    newFace.normal = reflectedNormal;
+    return newFace;
+  }
+  // Recursive draw method, recurses into mirrors
+  function drawScene(faces, lightDirection, Tx) {
+    faces.sort(compareFaces);
+    // Clear mirror surface/ screen
+    context.fillStyle = "rgb(255, 255, 255)";
+    context.fillRect(0,0,canvas.width,canvas.height);
+    // Draw all of the faces
+    for(var i = 0; i < faces.length; i++) {
+      var face = faces[i];
+      if(face.drawMe && getVisible(face) && getEyeDist(face) > 100) {
+        if(face.reflections > 0) {
+          context.beginPath();
+          moveToTx(face.vertices[0], Tx);
+          for(var j = 1; j < face.vertices.length; j++) {
+            lineToTx(face.vertices[j], Tx);
+          }
+          lineToTx(face.vertices[0], Tx);
+          // Trace mirror and restrict recursive calls to drawing inside mirror
+          context.stroke();
+          context.save();
+          context.clip();
+          // Reflect all faces
+          var mirroredScene = [];
+          for(j = 0; j < faces.length; j++) {
+              mirroredScene.push(reflectFace(faces[j], face));
+          }
+          // Recurse into mirror
+          drawScene(mirroredScene, reflectDirection(lightDirection, face.normal), Tx);
+          // Allow drawing outside of mirror
+          context.restore();
+        }
+        else {
+          drawFace(face, lightDirection, Tx);
+        }
+      }
+    }
+  }
+  function draw() {
+    counter++;
+    var reflections = 5;
+    // Prepare Scene
+    var sceneFaces = [];
+    // Green Mirror
+    var Tx1 = m4.rotationY(Math.PI*1/10);
+    m4.scale(Tx1, [0.25, 3, 3], Tx1);
+    m4.setTranslation(Tx1, [-400, 150, 500], Tx1);
+    sceneFaces = sceneFaces.concat(createBox(reflections, Tx1, [150, 200, 100]));
+    
+    // Purple Box
+    var Tx2 = m4.rotationX(counter/100);
+    m4.setTranslation(Tx2, [0, 50, 500], Tx2);
+    sceneFaces = sceneFaces.concat(createBox(0, Tx2, [150, 100, 250]));
+    
+    // Red Mirror
+    var redPosition;
+    if(counter%200 >= 100) {
+      redPosition = [300 + (counter%100)*5, 150, 700];
+    } else {
+      redPosition = [800 - (counter%100)*5, 150, 700];
+    }
+    var Tx3 = m4.rotationY(Math.PI*11/12);
+    m4.scale(Tx3, [2, 2, 2], Tx3);
+    m4.setTranslation(Tx3, redPosition, Tx3);
+    sceneFaces = sceneFaces.concat(createBox(reflections, Tx3, [255, 100, 100]));
+    
+    // Gray Mirror
+    var Tx4 = m4.rotationZ(Math.PI/2);
+    m4.scale(Tx4, [0.25, 2, 4], Tx4);
+    m4.setTranslation(Tx4, [0, -200, 500], Tx4);
+    sceneFaces = sceneFaces.concat(createBox(reflections, Tx4, [100, 100, 100]));
+    
+    // Camera Set up
+    if(counter%3000 >= 1500) {
+      eyePosition = [-750 + counter%1500, 450, -500];
+    } else {
+      eyePosition = [ 750 - counter%1500, 450, -500]
+    }
+    var target = [0, 0 , 500];
+    var up=[0,1,0];
+    eyeDirection = v3.normalize(v3.subtract(target, eyePosition));
+    var Tcamera=m4.inverse(m4.lookAt(eyePosition,target,up));
+    var Tprojection=m4.perspective(Math.PI/3,1,5,400);
+    var Tviewport=m4.multiply(m4.scaling([400,-400,400]),m4.translation([400,400,0]));
+    var Tcpv=m4.multiply(m4.multiply(Tcamera,Tprojection),Tviewport);
+ 
+    // Draw Scene
+    drawScene(sceneFaces, lightSource, Tcpv);
+    window.requestAnimationFrame(draw);
+  }
+  draw();
+
+}
+window.onload = setup;
+
+</script>
+</body>
+</html>

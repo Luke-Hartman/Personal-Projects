@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<!--
+Created using JS Bin
+http://jsbin.com
+
+Copyright (c) 2017 by naizen (http://jsbin.com/rosocem/4/edit)
+
+Released under the MIT license: http://jsbin.mit-license.org
+-->
+<meta name="robots" content="noindex">
+<html>
+
+  <head>
+    <meta name="description" content="Full Lighting">
+    <meta charset="utf-8">
+    <title>Lighting With Shadow</title>
+
+    <script id="vs" type="not-js">
+      attribute vec3 vPosition;
+      attribute vec3 vNormal;
+      attribute vec3 vColor;
+      attribute vec3 vBary;
+      attribute float vShadow;
+      varying vec3 fPosition;
+      varying vec3 fColor;
+      varying vec3 fNormal;
+      varying vec3 fBary;
+      varying float fShadow;
+      uniform mat4 uMV;
+      uniform mat4 uMVP;
+
+      void main(void) {
+        gl_Position = uMVP * vec4(vPosition, 1.0);
+        fPosition = (uMV * vec4(vPosition, 1.0)).xyz;
+        fColor = vColor;
+        fNormal = vNormal;
+        fShadow = vShadow;
+        fBary = vBary;
+      }
+    </script>
+
+    <script id="fs" type="not-js">
+      precision highp float;
+      varying vec3 fPosition;
+      varying vec3 fColor;
+      varying vec3 fNormal;
+      varying vec3 fBary;
+      varying float fShadow;
+      uniform mat4 uMV;
+      uniform vec3 uLightD;
+
+      const float ambient_coeff = 0.25;
+      const float diffuse_coeff = 0.3;
+      const float specular_coeff = 1.0;
+      const float specular_exp = 16.0;
+      const vec3 light_color = vec3(1.0, 1.0, 1.0);
+      
+      
+      void main(void) {
+        if(fShadow > 0.0) {
+          float z = 1.0 - fBary.x - fBary.y;
+          if(fBary.x >= 0.0 && fBary.x <= 1.0 &&
+             fBary.y >= 0.0 && fBary.y <= 1.0 &&
+             z >= 0.0 && z <= 1.0 &&
+             fBary.z >= -0.0) {
+            gl_FragColor = vec4(fColor*ambient_coeff, 1.0);
+          }
+          else {
+            discard;
+          }
+        } 
+        else 
+        {
+          vec3 n = (uMV * vec4(fNormal, 0.0)).xyz;
+          vec3 l = (uMV * vec4(uLightD, 0.0)).xyz;
+          vec3 diffuse = diffuse_coeff*fColor*(0.5 + dot(n,l));
+          vec3 ambient = ambient_coeff*fColor;
+          
+          vec3 h = normalize(normalize(-fPosition) + normalize(l));
+          vec3 specular = specular_coeff * pow(max(0.0, dot(n, h)), specular_exp) * light_color;
+          vec3 total = ambient + diffuse + specular;
+          gl_FragColor = vec4(total, 1.0);
+        }
+      }
+</script>
+
+  </head>
+
+  <body onload="start()">
+    <canvas id="mycanvas" width="1000" height="1000"></canvas><br>
+    <script src="http://graphics.cs.wisc.edu/JS/twgl-full.min.js"></script>
+  <script id="jsbin-javascript">
+function start() { "use strict";
+
+  // Get canvas, WebGL context, twgl.m4
+  var canvas = document.getElementById("mycanvas");
+  var gl = canvas.getContext("webgl");
+  var m4 = twgl.m4;
+  var v3 = twgl.v3;
+  var counter = 0;
+
+  /*
+  * Owner is a tag which labels triangles as part of an object
+  * Shadow is a tag which tells the shader to treat it differently
+  */
+  function Triangle(owner, shadow, vertices, color, Tx) {
+    this.owner = owner;
+    this.shadow = shadow;
+    this.vertices = vertices;
+    // Barys stores the barymetric coordinates of the triangle the shadow falls on,
+    // so that the shader can tell when to draw it and when not to
+    this.barys = [[1/3, 1/3, 1], [1/3, 1/3, 1], [1/3, 1/3, 1]];
+    for(var i = 0; i < vertices.length; i++) {
+      m4.transformPoint(Tx, vertices[i], vertices[i]);
+    }
+    this.color = color;
+    this.normal = computeNormal(vertices);
+  }
+  function computeNormal(vertices) {
+    var AB = v3.subtract(vertices[1], vertices[0]);
+    var BC = v3.subtract(vertices[2], vertices[1]);
+    var normal = v3.cross(AB, BC);
+    v3.normalize(normal, normal);
+    return normal;
+  }
+  // V is the point to be projected in direction d, n is plane's normal, p is a point on plane
+  function projectOntoPlane(v, d, p, n) {
+      return v3.add(v, v3.mulScalar(d, v3.dot(v3.subtract(p, v), n)/v3.dot(d, n)));
+  }
+  // Creates the simple object used in this scene
+  function createTetrahedron(id, Tx) {
+    return [
+      new Triangle(id, 0, [[0, 0, 0], [0, 0, 1], [0, 1, 0]], [1, 1, 0], Tx),
+      new Triangle(id, 0, [[0, 0, 0], [1, 0, 0], [0, 0, 1]], [0, 1, 0], Tx),
+      new Triangle(id, 0, [[0, 0, 0], [0, 1, 0], [1, 0, 0]], [0, 0, 1], Tx),
+      new Triangle(id, 0, [[0, 1, 0], [0, 0, 1], [1, 0, 0]], [1, 0, 0], Tx)
+    ];
+  }
+                  
+  // Set up shaders
+  var vertexSource = document.getElementById("vs").text;
+  var fragmentSource = document.getElementById("fs").text;
+
+  var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vertexShader,vertexSource);
+  gl.compileShader(vertexShader);
+  if(!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+    alert(gl.getShaderInfoLog(vertexShader));
+    return null; 
+  }
+
+  var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fragmentShader,fragmentSource);
+  gl.compileShader(fragmentShader);
+  if(!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+    alert(gl.getShaderInfoLog(fragmentShader));
+    return null; 
+  }
+
+  var shaderProgram = gl.createProgram();
+  gl.attachShader(shaderProgram, vertexShader);
+  gl.attachShader(shaderProgram, fragmentShader);
+  gl.linkProgram(shaderProgram);
+  if(!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+    alert("Could not initialize shaders"); 
+  }
+  gl.useProgram(shaderProgram);	    
+
+  shaderProgram.PositionAttribute = gl.getAttribLocation(shaderProgram, "vPosition");
+  gl.enableVertexAttribArray(shaderProgram.PositionAttribute);
+
+  shaderProgram.ColorAttribute = gl.getAttribLocation(shaderProgram, "vColor");
+  gl.enableVertexAttribArray(shaderProgram.ColorAttribute);
+
+  shaderProgram.NormalAttribute = gl.getAttribLocation(shaderProgram, "vNormal");
+  gl.enableVertexAttribArray(shaderProgram.NormalAttribute);
+                  
+  shaderProgram.BaryAttribute = gl.getAttribLocation(shaderProgram, "vBary");
+  gl.enableVertexAttribArray(shaderProgram.BaryAttribute);                  
+                  
+  shaderProgram.ShadowAttribute = gl.getAttribLocation(shaderProgram, "vShadow");
+  gl.enableVertexAttribArray(shaderProgram.ShadowAttribute);
+
+  shaderProgram.MVmatrix = gl.getUniformLocation(shaderProgram,"uMV");
+  shaderProgram.MVPmatrix = gl.getUniformLocation(shaderProgram,"uMVP");
+  shaderProgram.LightDirection = gl.getUniformLocation(shaderProgram, "uLightD");
+                  
+  // Draw called on each frame
+  function draw() {
+    counter++;
+    var angle1 = counter*0.01;
+    var angle2 = counter*0.01*Math.PI;
+    
+    // Set up scene constants
+    var lightDirection = v3.normalize([7, -5, 8]);
+    var up = [0,1,0];
+    // A point on the ground
+    var ground = [0,-60,0];
+    // Angle the ground is slanted
+    var groundN = v3.normalize([0,1,0]);
+    
+    // Create Objects
+    var Tx = m4.identity();
+    m4.translate(Tx, [-25,50,0], Tx);
+    m4.scale(Tx, [50,50,50], Tx);
+    m4.multiply(Tx, m4.axisRotation([1,1,1], angle2), Tx);
+    
+    var Tx2 = m4.identity();
+    m4.scale(Tx2, [100,20,100], Tx2);
+    
+    var Tx3 = m4.identity();
+    m4.rotateY(Tx3, counter*0.02, Tx3);
+    m4.scale(Tx3, [30,30,30], Tx3);
+    m4.setTranslation(Tx3, [-20,30,-20], Tx3);
+    
+    var triangles = createTetrahedron(0, Tx).concat(createTetrahedron(1, Tx2)).concat(createTetrahedron(2, Tx3));
+    
+    // Save the number of regular (not shadows) triangles
+    var t = triangles.length;
+    var v = triangles[0].vertices.length;
+    var p = triangles[0].vertices[0].length;
+    
+    // Generate ground shadows
+    for(var i = 0; i < t; i++) {
+      var tri = triangles[i];
+      // If the triangle is facing the light
+      if(v3.dot(lightDirection, triangles[i].normal)< 0.0) {
+        var newVertices = [];
+        var newBarys = [];
+        for(var j = 0; j < v; j++) {
+          var vj = tri.vertices[j];
+          // projected is the point vj projected onto the ground
+          var projected = projectOntoPlane(vj, lightDirection, ground, groundN);
+          // H relates the vertex position with respect to its shadow, only draws the shadow if it is behind the vertex
+          var H = -v3.dot(triangles[i].vertices[j], lightDirection) + v3.dot(projected, lightDirection);
+          newVertices.push(projected);
+          newBarys.push([1/3, 1/3, H]);
+        }
+        // Create the shadow and add it to the scene
+        var newTriangle = new Triangle(-1, 1, newVertices, [1, 1, 1], m4.identity());
+        newTriangle.barys = newBarys;
+        triangles.push(newTriangle);
+      }
+    }
+    // Generate shadows between objects
+    // triangle[i] is the triangle casting the shadow
+    for(var i = 0; i < t; i++) {
+      var tri = triangles[i];
+      var trin = tri.normal;
+      // If the triangle is not facing the light, ignore it
+      if(v3.dot(lightDirection, trin) >= 0.0) {
+        continue;
+      }
+      // triangle[j] is the triangle the shadow lands on
+      for(var j = 0; j < t; j++) {
+        var trj = triangles[j];
+        var trjn = trj.normal;
+        // No shadow if
+        // the triangles are part of the same object,
+        // trj is not facing the light,
+        // or the two triangles are pointing towards each other
+        if(tri.owner == trj.owner ||
+           v3.dot(lightDirection, triangles[j].normal) >= 0.0 ||
+           v3.dot(triangles[i].normal, triangles[j].normal >= 0.0)) {
+          continue;
+        }
+        // Create unit vectors on the plane of trj.
+        // This allows the finding of the barycentric coordinates
+        var u1 = v3.normalize(v3.cross(trjn, up));
+        var u2 = v3.cross(trjn, u1);
+        var newVertices = [];
+        var barys = [];
+        for(var k = 0; k < v; k++) {
+          var vi = triangles[i].vertices[k];
+          // vi projected onto the surface of trj
+          var projected = projectOntoPlane(vi, lightDirection, trj.vertices[0], trjn);
+          // used to find if vi is in front of trj
+          var H = -v3.dot(vi, lightDirection) + v3.dot(projected, lightDirection);
+          // Move the shadow slightly in front of the surface it is on
+          v3.add(projected, v3.mulScalar(trjn, 0.01), projected);
+          newVertices.push(projected);
+          // Now solve this system of equations for the barycentric coordinates
+          /*
+          * xi is the u1 coordinate of the ith vertex of trj
+          * yi is the u2 coordinate of the ith vertex of trj
+          * px is the u1 coordiante of the projected vertex
+          * py is the u2 coordiante of the projected vertex
+          * bi is the ith barycentric coordinate
+          *
+          * Ax = b
+          *
+          * [x1, x2, x3] [b1]   [px]
+          * [y1, y2, y3]*[b2] = [py] 
+          * [1,  1,  1 ] [b3]   [1 ]
+          *
+          * (Added zeroes and 1's to solve this with 4x4 matrices)
+          */
+          
+          var b = [v3.dot(projected, u1), v3.dot(projected, u2), 1];
+          var A = [v3.dot(triangles[j].vertices[0], u1),
+                   v3.dot(triangles[j].vertices[1], u1),
+                   v3.dot(triangles[j].vertices[2], u1),
+                   0,
+                   v3.dot(triangles[j].vertices[0], u2),
+                   v3.dot(triangles[j].vertices[1], u2),
+                   v3.dot(triangles[j].vertices[2], u2),
+                   0,
+                   1, 1, 1, 0,
+                   0, 0, 0, 1];
+          
+          // Transpose it because of TWGL conventions
+          m4.transpose(A, A);
+          // Solve for [b1, b2, b3]
+          var bary = m4.transformPoint(m4.inverse(A), b);
+          /* Only store b1 and b2, since b3 is 1 - b1 - b2
+          *  H is stored in the third position instead, so that the shader can
+          *  determine if the point should be drawn
+          */
+          barys.push([bary[0], bary[1], H]);
+        }
+        var newTriangle = new Triangle(-1, 1, newVertices, triangles[j].color, m4.identity());
+        newTriangle.barys = barys;
+        triangles.push(newTriangle);
+      }
+    }
+    
+    // Set up buffers from triangles
+    // Update t to reflect new triangles.length
+    t = triangles.length;
+    var vertexPos = new Float32Array(t*v*p);
+    var vertexColors = new Float32Array(t*v*p);
+    var vertexNormals = new Float32Array(t*v*p);
+    var vertexBarys = new Float32Array(t*v*p);
+    var vertexShadows = new Float32Array(t*v);
+    for(var i = 0; i < t; i++) {
+      for(var j = 0; j < v; j++) {
+        for(var k = 0; k < p; k++) {
+          vertexPos[i*v*p + j*p + k] = triangles[i].vertices[j][k];
+          vertexNormals[i*v*p + j*p + k] = triangles[i].normal[k];
+          vertexColors[i*v*p + j*p + k] = triangles[i].color[k];
+          vertexBarys[i*v*p + j*p + k] = triangles[i].barys[j][k];
+        }
+        vertexShadows[i*v + j] = triangles[i].shadow;
+      }
+    }
+    
+    var trianglePosBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, trianglePosBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexPos, gl.STATIC_DRAW);
+    trianglePosBuffer.itemSize = p;
+    trianglePosBuffer.numItems = t*v;
+
+    var triangleNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, triangleNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexNormals, gl.STATIC_DRAW);
+    triangleNormalBuffer.itemSize = p;
+    triangleNormalBuffer.numItems = t*v;
+
+    var colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexColors, gl.STATIC_DRAW);
+    colorBuffer.itemSize = p;
+    colorBuffer.numItems = t*v;
+    
+    var baryBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, baryBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexBarys, gl.STATIC_DRAW);
+    baryBuffer.itemSize = p;
+    baryBuffer.numItems = t*v;
+   
+    var shadowBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, shadowBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexShadows, gl.STATIC_DRAW);
+    shadowBuffer.itemSize = 1;
+    shadowBuffer.numItems = t*v;
+
+    // Use the classic rotating eye
+    var eye = [400*Math.sin(angle1), 150, 400*Math.cos(angle1)];
+    var target = [0,0,0];
+    
+    var tCamera = m4.inverse(m4.lookAt(eye,target,up));
+    var tProjection = m4.perspective(Math.PI/4,1,10,1000);
+
+    var tMV = tCamera;
+    var tMVP = m4.multiply(tMV,tProjection);
+
+    // Clear screen, prepare for rendering
+    gl.clearColor(1.0, 1.0, 1.0, 1.0);
+    gl.enable(gl.DEPTH_TEST);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Set up uniforms & attributes
+    gl.uniformMatrix4fv(shaderProgram.MVmatrix,false,tMV);
+    gl.uniformMatrix4fv(shaderProgram.MVPmatrix,false,tMVP);
+    gl.uniform3fv(shaderProgram.LightDirection,v3.negate(lightDirection));
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, trianglePosBuffer);
+    gl.vertexAttribPointer(shaderProgram.PositionAttribute, trianglePosBuffer.itemSize,
+      gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, triangleNormalBuffer);
+    gl.vertexAttribPointer(shaderProgram.NormalAttribute, triangleNormalBuffer.itemSize,
+      gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.vertexAttribPointer(shaderProgram.ColorAttribute, colorBuffer.itemSize,
+      gl.FLOAT,false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, baryBuffer);
+    gl.vertexAttribPointer(shaderProgram.BaryAttribute, baryBuffer.itemSize,
+      gl.FLOAT,false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, shadowBuffer);
+    gl.vertexAttribPointer(shaderProgram.ShadowAttribute, shadowBuffer.itemSize,
+      gl.FLOAT,false, 0, 0);
+
+    // Do the drawing
+    gl.drawArrays(gl.TRIANGLES, 0, trianglePosBuffer.numItems);
+    window.requestAnimationFrame(draw);
+  }
+  draw();
+}
+</script>
+</body>
+
+</html>

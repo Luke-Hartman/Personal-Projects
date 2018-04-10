@@ -1,0 +1,1 @@
+Run on Medium Straight with speed = 250, RandomForestAlgorithm for sampling, and a NN with k=5 for the visualization.

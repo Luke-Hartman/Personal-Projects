@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<!--
+Created using JS Bin
+http://jsbin.com
+
+Copyright (c) 2017 by Luke-Hartman (http://jsbin.com/zoketud/1/edit)
+
+Released under the MIT license: http://jsbin.mit-license.org
+-->
+<meta name="robots" content="noindex">
+<html>
+  <head>
+    <meta name="3D Lit Pyramid Fractal">
+    <meta charset="utf-8">
+    <title>3D Lit Pyramid Fractal</title>
+    <canvas id="myCanvas" width="500" height="500" style="border:1px solid #000";></canvas>
+    </br>
+    Eye Position
+    </br>
+    <input id="eyePitch" type="range" min="-89" value="10" max="89"/>
+    <input id="eyeYaw" type="range" min="0" value="20" max="360"/>
+    </br>
+    Red Light
+    </br>
+    <input id="redPitch" type="range" min="-89" value="0" max="89"/>
+    <input id="redYaw" type="range" min="0" value="270" max="360"/>
+    </br>
+    Green Light
+    </br>
+    <input id="greenPitch" type="range" min="-89" value="30" max="89"/>
+    <input id="greenYaw" type="range" min="0" value="150" max="360"/>
+    </br>
+    Blue Light
+    </br>
+    <input id="bluePitch" type="range" min="-89" value="80" max="89"/>
+    <input id="blueYaw" type="range" min="0" value="280" max="360"/>
+    </br>
+    Complexity
+    </br>
+    <input id="complexity" type="range" min="1" value="4" max="5"/>
+    <script src="http://graphics.cs.wisc.edu/JS/twgl-full.min.js"></script>
+  </head>
+<body>
+  
+<script id="jsbin-javascript">
+function setup() {
+  var canvas = document.getElementById('myCanvas');
+  var context = canvas.getContext('2d');
+  var m4 = twgl.m4;
+  var v3 = twgl.v3;
+  
+  // Get sliders
+  var complexity = document.getElementById('complexity');
+  var eyePitchSldr = document.getElementById('eyePitch');
+  var eyeYawSldr = document.getElementById('eyeYaw');
+  var lightPitchSldrs = [
+    document.getElementById('redPitch'),
+    document.getElementById('greenPitch'),
+    document.getElementById('bluePitch')
+  ];
+  var lightYawSldrs = [
+    document.getElementById('redYaw'),
+    document.getElementById('greenYaw'),
+    document.getElementById('blueYaw')
+  ];
+  eyePitchSldr.addEventListener("input", draw);
+  eyeYawSldr.addEventListener("input", draw);
+  complexity.addEventListener("input", draw);
+  for(var i = 0; i < lightPitchSldrs.length; i++) {
+    lightPitchSldrs[i].addEventListener("input", draw);
+    lightYawSldrs[i].addEventListener("input", draw);
+  }
+  
+  // The base of the pyramids
+  var faces = [
+    [[ 0,   0,   0], [ 50, -50, 100], [ 50,  50, 100]],
+    [[ 0,   0,   0], [-50, -50, 100], [ 50, -50, 100]],
+    [[ 0,   0,   0], [ 50,  50, 100], [-50,  50, 100]],
+    [[ 0,   0,   0], [-50,  50, 100], [-50, -50, 100]],
+    [[-50, 50, 100], [ 50,  50, 100], [ 50, -50, 100], [-50, -50, 100]]
+  ];
+  var faceColors = ["red", "red", "red", "red", "red"];
+  var faceEnabled = [0, 0, 0, 0, 0];
+  
+  // By calling the recurse in a clever order, it will draw the faces correctly
+  var recursePositions = [
+        [  0,  0,  0],
+        [ 25, 25, 50],
+        [ 25,-25, 50],
+        [-25, 25, 50],
+        [-25,-25, 50]
+  ];
+  var recurseOrder = [0, 1, 2, 3, 4];
+  
+  // Drawing Functions
+  function toR2(point, Tx) {
+    var transformedPoint = m4.transformPoint(Tx, point);
+    return [transformedPoint[0]*2+250, transformedPoint[1]*2+150];
+  }
+  function moveToTx(point, Tx) {
+    var pointR2 = toR2(point, Tx);
+    context.moveTo(pointR2[0], pointR2[1]);
+  }
+  function lineToTx(point, Tx) {
+    var pointR2 = toR2(point, Tx);
+    context.lineTo(pointR2[0], pointR2[1]);
+  }
+  function drawPyramid(Tx) {
+    for(var i = 0; i < faces.length; i++) {
+      if(faceEnabled[i]) {
+        context.beginPath();
+        context.fillStyle = faceColors[i];
+        var face = faces[i];
+        moveToTx(face[0], Tx);
+        for(var j = 1; j < face.length; j++) {
+          lineToTx(face[j], Tx);
+        }
+        context.fill();
+      }
+    }
+  }
+  function fractalPyramid(n, Tx) {
+    if(n == 1) {
+      drawPyramid(Tx);
+    }
+    else {
+      var scale = m4.scaling([1/2, 1/2, 1/2]);
+      for(var i = 0; i < recurseOrder.length; i++) {
+        var newTx = m4.multiply(scale, m4.multiply(m4.translation(recursePositions[recurseOrder[i]]), Tx));
+        fractalPyramid(n-1, newTx);
+      }
+    }
+  }
+  function getDirection(ang1, ang2) {
+    var dir = [1, 0, 0];
+    var zRot = m4.rotationZ(ang2);
+    m4.transformDirection(zRot, dir, dir);
+    var right = [0, 1, 0];
+    m4.transformDirection(zRot, right, right);
+    m4.transformDirection(m4.axisRotation(right, -ang1), dir, dir);
+    return dir;
+  }
+  function draw() {
+    canvas.width = canvas.width;
+    // Where the camera is
+    var eyePitch = eyePitchSldr.value*Math.PI/180;
+    var eyeYaw = eyeYawSldr.value*Math.PI/180;
+    var eyePosition = v3.mulScalar(getDirection(eyePitch, eyeYaw), 300);
+    
+    // Where the light sources are
+    var lightDirections = [];
+    for(var i = 0; i < lightPitchSldrs.length; i++) {
+      var lightPitch = lightPitchSldrs[i].value*Math.PI/180;
+      var lightYaw = lightYawSldrs[i].value*Math.PI/180;
+      lightDirections.push(getDirection(lightPitch, lightYaw));
+    }
+    
+    // Get view transform
+    var lookAt = [0, 0, 0];
+    var up = [0, 0, 1];
+    var Tview = m4.inverse(m4.lookAt(eyePosition, lookAt, up));
+    
+    // Get direction of camera
+    var lookDirection = v3.subtract(lookAt, eyePosition);
+    v3.normalize(lookDirection, lookDirection);
+    
+    // Calculate things pertaining to the structure of the pyramid
+    for(i = 0; i < faces.length; i++) {
+      // Calculate the normals
+      var face = faces[i];
+      var AB = v3.subtract(face[1], face[0]);
+      var BC = v3.subtract(face[2], face[1]);
+      var normal = v3.cross(AB, BC);
+      v3.normalize(normal, normal);
+      
+      // Don't draw faces which are facing away from the camera
+      var viewDot = v3.dot(normal, lookDirection);
+      if(viewDot <= 0) {
+        faceEnabled[i] = 0;
+      }
+      else {
+        faceEnabled[i] = 1;
+      }
+      
+      // Base the color intensity on the light
+      var colorVec = [50, 50, 50];
+      for(var j = 0; j < lightDirections.length; j++) {
+        var lightDot = v3.dot(normal, lightDirections[j]);
+        if(lightDot > 0) {
+          colorVec[j] = Math.floor(50 + 205*lightDot);
+        }
+      }
+      faceColors[i] = "rgb(" + colorVec[0] + ", " + colorVec[1] + ", " + colorVec[2] + ")";
+    }
+    
+    // Determine the draw order (Furthest first)
+    var distances = [];
+    for(i = 0; i < recurseOrder.length; i++) {
+      distances[i] = v3.length(v3.subtract(recursePositions[i], eyePosition));
+    }
+    var maxIndex = -1;
+    var maxValue = -Infinity;
+    for(i = 0; i < recurseOrder.length; i++) {
+      for(j = 0; j < recurseOrder.length; j++) {
+        var dist = distances[j];
+        if(dist >= maxValue) {
+          maxValue = dist;
+          maxIndex = j;
+        }
+      }
+      recurseOrder[i] = maxIndex;
+      distances[maxIndex] = -Infinity;
+      maxValue = -Infinity;
+    }  
+    // Draw the pyramid
+    fractalPyramid(complexity.value, Tview);
+  }
+  draw();
+}
+window.onload = setup;
+</script>
+</body>
+</html>
