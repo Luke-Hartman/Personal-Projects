@@ -18,4 +18,4 @@ Use Python 2.7 and Pygame to run.
 ## Scoring
 ![](Media/Score.PNG)
 ## Tic Tac Go
-![](Media/Tic Tac Go.PNG)
+![](Media/TicTacGo.PNG)
