@@ -1,1 +1,1 @@
-﻿# 2D Fractal# [Open in your browser](2D Fractal.html)[Assignment specifications](http://graphics.cs.wisc.edu/WP/cs559-sp2017/2017/01/19/programming-assignment-2-hierarchical-modeling-in-2d/)
+﻿# 2D Fractal# [Open in your browser](https://luke-hartman.github.io/Personal-Projects/Computer%20Graphics/2D%20Fractal/2DFractal.html)[Assignment specifications](http://graphics.cs.wisc.edu/WP/cs559-sp2017/2017/01/19/programming-assignment-2-hierarchical-modeling-in-2d/)
