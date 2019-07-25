@@ -32,7 +32,7 @@ This is not implemented very carefully. It is possible for it to never terminate
 ### Leaving Algorithm
 Uses the heuristic that areas leaves of the decision tree are equally important, so it samples randomly in random leaves. Major failures of this heuristic are that not all leaves touch the decision boundary, and also that it may cause edges which are not aligned with the axis of splits to be given far more attention.
 
-### Luke's Algorithm
+### Pet Algorithm
 Samples along the decision boundary of a decision tree, an older version tried to also sample uniformly. The latest version I tested builds a new decision tree for every few samples in the batch to prevent sampling too densely along the decision boundary of a single decision tree.
 
 ## Examples
