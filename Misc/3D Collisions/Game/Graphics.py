@@ -7,7 +7,7 @@ import Config
 pygame.init()
 infoObject = pygame.display.Info()
 
-#''' Look at this slick ass toggle
+#'''
 w = infoObject.current_w
 h = infoObject.current_h
 screen = pygame.display.set_mode((w, h), pygame.FULLSCREEN)
